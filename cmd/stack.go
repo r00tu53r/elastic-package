@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/elastic/elastic-package/internal/cobraext"
 	"github.com/elastic/elastic-package/internal/common"
+	"github.com/elastic/elastic-package/internal/docker"
 	"github.com/elastic/elastic-package/internal/install"
 	"github.com/elastic/elastic-package/internal/profile"
 	"github.com/elastic/elastic-package/internal/stack"
@@ -42,7 +44,81 @@ To ęxpose local packages in the Package Registry, build them first and boot up 
 
 For details on how to connect the service with the Elastic stack, see the [service command](https://github.com/elastic/elastic-package/blob/master/README.md#elastic-package-service).`
 
+func setupSwarmCommand() *cobra.Command {
+
+	networkCreateCommand := &cobra.Command{
+		Use:   "create",
+		Short: "Create multi host overlay network",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			subnet, err := cmd.Flags().GetString(cobraext.IPSubnetFlagName)
+			if err != nil {
+				return cobraext.FlagParsingError(err, cobraext.IPSubnetFlagName)
+			}
+			_, _, err = net.ParseCIDR(subnet)
+			if err != nil {
+				return errors.Wrap(err, "create overlay network failed")
+			}
+			overlayArgs := []string{
+				"--subnet",
+				subnet,
+				"--attachable",
+			}
+			name := fmt.Sprintf("%s-overlay", stack.DockerComposeProjectName)
+			return docker.CreateNetwork(name, "overlay", overlayArgs...)
+		},
+	}
+	networkCreateCommand.Flags().StringP(cobraext.IPSubnetFlagName, "", "", cobraext.IPSubnetFlagDescription)
+	networkCreateCommand.MarkFlagRequired(cobraext.IPSubnetFlagName)
+
+	networkCommand := &cobra.Command{
+		Use:   "network",
+		Short: "Create and manage multi-host network",
+	}
+	networkCommand.AddCommand(networkCreateCommand)
+
+	initCommand := &cobra.Command{
+		Use:   "init",
+		Short: "Create and initialize docker swarm and profile",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			iftname, err := cmd.Flags().GetString(cobraext.InterfaceFlagName)
+			if err != nil {
+				return cobraext.FlagParsingError(err, cobraext.InterfaceFlagDescription)
+			}
+			_, err = net.InterfaceByName(iftname)
+			if err != nil {
+				return errors.Wrap(err, "cannot create docker swarm without overlay network interface")
+			}
+			options := profile.Options{
+				Name:              profile.SwarmProfile,
+				FromProfile:       profile.DefaultProfile,
+				OverwriteExisting: false,
+			}
+			err = profile.CreateProfile(options)
+			if err != nil {
+				return errors.Wrap(err, "swarm profile creation has failed")
+			}
+			err = docker.SwarmInit(iftname)
+			if err != nil {
+				errors.Wrap(err, "docker swarm creation has failed")
+			}
+			return nil
+		},
+	}
+	initCommand.Flags().StringP(cobraext.InterfaceFlagName, "", "", cobraext.InterfaceFlagDescription)
+	initCommand.MarkFlagRequired(cobraext.InterfaceFlagName)
+
+	swarmCommand := &cobra.Command{
+		Use:   "swarm",
+		Short: "Setup stack with multi-host networking",
+	}
+	swarmCommand.AddCommand(networkCommand)
+	swarmCommand.AddCommand(initCommand)
+
+	return swarmCommand
+}
+
 func setupStackCommand() *cobraext.Command {
+
 	upCommand := &cobra.Command{
 		Use:   "up",
 		Short: "Boot up the stack",
@@ -239,6 +315,8 @@ func setupStackCommand() *cobraext.Command {
 	}
 	dumpCommand.Flags().StringP(cobraext.StackDumpOutputFlagName, "", "elastic-stack-dump", cobraext.StackDumpOutputFlagDescription)
 
+	swarmCommand := setupSwarmCommand()
+
 	cmd := &cobra.Command{
 		Use:   "stack",
 		Short: "Manage the Elastic stack",
@@ -250,6 +328,7 @@ func setupStackCommand() *cobraext.Command {
 		downCommand,
 		updateCommand,
 		shellInitCommand,
+		swarmCommand,
 		dumpCommand)
 
 	return cobraext.NewCommand(cmd, cobraext.ContextGlobal)

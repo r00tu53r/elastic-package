@@ -25,6 +25,8 @@ type Profile struct {
 const (
 	// DefaultProfile is the name of the default profile
 	DefaultProfile = "default"
+	// SwarmProfile is the name for docker swarm profile
+	SwarmProfile = "swarm"
 )
 
 // ErrNotAProfile is returned in cases where we don't have a valid profile directory

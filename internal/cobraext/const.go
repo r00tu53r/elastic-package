@@ -42,6 +42,12 @@ const (
 	GenerateTestResultFlagName        = "generate"
 	GenerateTestResultFlagDescription = "generate test result file"
 
+	InterfaceFlagName        = "interface-name"
+	InterfaceFlagDescription = "network interface name"
+
+	IPSubnetFlagName        = "subnet"
+	IPSubnetFlagDescription = "subnet in CIDR format that represents a network segment (Example: 192.168.56.0/24)"
+
 	ProfileFlagName        = "profile"
 	ProfileFlagDescription = "select a profile to use for the stack configuration. Can also be set with %s"
 
@@ -50,6 +56,15 @@ const (
 
 	ProfileFormatFlagName        = "format"
 	ProfileFormatFlagDescription = "format of the profiles list (table | json)"
+
+	NetworkCreate                = "create"
+	NetworkCreateFlagDescription = "create overlay network"
+
+	NetworkDelete                = "delete"
+	NetworkDeleteFlagDescription = "delete overlay network"
+
+	NetworkList                = "list"
+	NetworkListFlagDescription = "list overlay network(s)"
 
 	NewestOnlyFlagName        = "newest-only"
 	NewestOnlyFlagDescription = "promote newest packages and remove old ones"

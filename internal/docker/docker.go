@@ -119,6 +119,44 @@ func ConnectToNetwork(containerID, network string) error {
 	return nil
 }
 
+func SwarmInit(ift string) error {
+	swarmArg := []string{
+		"swarm",
+		"init",
+		"--advertise-addr",
+		ift,
+	}
+	cmd := exec.Command("docker", swarmArg...)
+	errOutput := new(bytes.Buffer)
+	cmd.Stderr = errOutput
+	logger.Debugf("run command: %s", cmd)
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "docker swarm init failed (stderr=%q)", errOutput.String())
+	}
+	return nil
+}
+
+func CreateNetwork(name, driver string, arg ...string) error {
+	netcmd := []string{
+		"network",
+		"create",
+		"--driver",
+		driver,
+	}
+	if len(arg) > 0 {
+		netcmd = append(netcmd, arg...)
+	}
+	netcmd = append(netcmd, name)
+	cmd := exec.Command("docker", netcmd...)
+	errOutput := new(bytes.Buffer)
+	cmd.Stderr = errOutput
+	logger.Debugf("run command: %s", cmd)
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "could not create stack network (stderr=%q)", errOutput.String())
+	}
+	return nil
+}
+
 // InspectContainers function inspects selected Docker containers.
 func InspectContainers(containerIDs ...string) ([]ContainerDescription, error) {
 	args := []string{"inspect"}

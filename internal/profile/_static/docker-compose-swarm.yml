@@ -1,0 +1,130 @@
+version: '2.3'
+networks:
+  overlaynet:
+    external: true
+    name: elastic-package-stack-overlay
+services:
+  elasticsearch:
+    image: "${ELASTICSEARCH_IMAGE_REF}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-u", "elastic:changeme", "http://127.0.0.1:9200/"]
+      retries: 300
+      interval: 1s
+    environment:
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "ELASTIC_PASSWORD=changeme"
+    volumes:
+      - "./elasticsearch.config.${STACK_VERSION_VARIANT}.yml:/usr/share/elasticsearch/config/elasticsearch.yml"
+      - "../../../stack/ingest-geoip/${STACK_VERSION_VARIANT}/:/usr/share/elasticsearch/config/ingest-geoip"
+    ports:
+      - "9200:9200"
+    networks:
+      - overlaynet
+
+  elasticsearch_is_ready:
+    image: tianon/true
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: "${KIBANA_IMAGE_REF}"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      package-registry:
+        condition: service_healthy
+    healthcheck:
+      test: "sh /usr/share/kibana/healthcheck.sh"
+      retries: 600
+      interval: 1s
+    volumes:
+      - "./kibana.config.${STACK_VERSION_VARIANT}.yml:/usr/share/kibana/config/kibana.yml"
+      - "../../../stack/healthcheck.sh:/usr/share/kibana/healthcheck.sh"
+    ports:
+      - "5601:5601"
+    networks:
+      - overlaynet
+
+  kibana_is_ready:
+    image: tianon/true
+    depends_on:
+      kibana:
+        condition: service_healthy
+
+  package-registry:
+    build:
+      context: ../../../
+      dockerfile: "${STACK_PATH}/Dockerfile.package-registry"
+      args:
+        PROFILE: "${PROFILE_NAME}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080"]
+      retries: 300
+      interval: 1s
+    ports:
+      - "8080:8080"
+    networks:
+      - overlaynet
+
+  package-registry_is_ready:
+    image: tianon/true
+    depends_on:
+      package-registry:
+        condition: service_healthy
+
+  fleet-server:
+    image: "${ELASTIC_AGENT_IMAGE_REF}"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    healthcheck:
+      test: "curl -f http://127.0.0.1:8220/api/status | grep HEALTHY 2>&1 >/dev/null"
+      retries: 12
+      interval: 5s
+    hostname: docker-fleet-server
+    environment:
+    - "FLEET_SERVER_ENABLE=1"
+    - "FLEET_SERVER_INSECURE_HTTP=1"
+    - "KIBANA_FLEET_SETUP=1"
+    - "KIBANA_FLEET_HOST=http://kibana:5601"
+    - "FLEET_SERVER_HOST=0.0.0.0"
+    - "STATE_PATH=/usr/share/elastic-agent"
+    ports:
+      - "8220:8220"
+    networks:
+      - overlaynet
+
+  fleet-server_is_ready:
+    image: tianon/true
+    depends_on:
+      fleet-server:
+        condition: service_healthy
+
+  elastic-agent:
+    image: "${ELASTIC_AGENT_IMAGE_REF}"
+    depends_on:
+      fleet-server:
+        condition: service_healthy
+    healthcheck:
+      test: "elastic-agent status"
+      retries: 90
+      interval: 1s
+    hostname: docker-fleet-agent
+    environment:
+    - "FLEET_ENROLL=1"
+    - "FLEET_INSECURE=1"
+    - "FLEET_URL=http://fleet-server:8220"
+    - "STATE_PATH=/usr/share/elastic-agent"
+    volumes:
+    - type: bind
+      source: ../../../tmp/service_logs/
+      target: /tmp/service_logs/
+
+  elastic-agent_is_ready:
+    image: tianon/true
+    depends_on:
+      elastic-agent:
+        condition: service_healthy

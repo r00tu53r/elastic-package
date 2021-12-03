@@ -16,8 +16,18 @@ const SnapshotFile configFile = "snapshot.yml"
 //go:embed _static/docker-compose-stack.yml
 var snapshotYml string
 
+//go:embed _static/docker-compose-swarm.yml
+var swarmSnapshotYml string
+
 // newSnapshotFile returns a Managed Config
-func newSnapshotFile(_ string, profilePath string) (*simpleFile, error) {
+func newSnapshotFile(profileName string, profilePath string) (*simpleFile, error) {
+	if profileName == SwarmProfile {
+		return &simpleFile{
+			name: string(SnapshotFile),
+			path: filepath.Join(profilePath, profileStackPath, string(SnapshotFile)),
+			body: swarmSnapshotYml,
+		}, nil
+	}
 	return &simpleFile{
 		name: string(SnapshotFile),
 		path: filepath.Join(profilePath, profileStackPath, string(SnapshotFile)),
