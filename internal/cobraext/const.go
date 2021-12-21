@@ -51,6 +51,12 @@ const (
 	ProfileFormatFlagName        = "format"
 	ProfileFormatFlagDescription = "format of the profiles list (table | json)"
 
+	ManifestKeyFlagName        = "key"
+	ManifestKeyFlagDescription = "top level or dot separated key in the manifest"
+
+	ManifestValueFlagName        = "values"
+	ManifestValueFlagDescription = "one or more values for the given key. Comparison succeeds if atleast one value for the key is found"
+
 	NewestOnlyFlagName        = "newest-only"
 	NewestOnlyFlagDescription = "promote newest packages and remove old ones"
 
