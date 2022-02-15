@@ -283,6 +283,11 @@ func (r *runner) runTest(config *testConfig, ctxt servicedeployer.ServiceContext
 		return result.WithError(errors.Wrap(err, "could not create service runner"))
 	}
 
+	if r.options.OverlayNetworkName != "" {
+		ctxt.CustomProperties = make(map[string]interface{})
+		ctxt.CustomProperties["overlay-network"] = r.options.OverlayNetworkName
+	}
+
 	if config.Service != "" {
 		ctxt.Name = config.Service
 	}

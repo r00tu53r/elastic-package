@@ -13,8 +13,8 @@ import (
 )
 
 // EnsureStackNetworkUp function verifies if stack network is up and running.
-func EnsureStackNetworkUp() error {
-	_, err := docker.InspectNetwork(Network())
+func EnsureStackNetworkUp(networkName string) error {
+	_, err := docker.InspectNetwork(networkName)
 	return errors.Wrap(err, "network not available")
 }
 

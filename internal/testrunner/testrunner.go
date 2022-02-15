@@ -28,6 +28,9 @@ type TestOptions struct {
 
 	DeferCleanup   time.Duration
 	ServiceVariant string
+
+	// used when tests are run on docker swarm
+	OverlayNetworkName string
 }
 
 // TestRunner is the interface all test runners must implement.

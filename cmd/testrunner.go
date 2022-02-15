@@ -70,6 +70,7 @@ func setupTestCommand() *cobraext.Command {
 	cmd.PersistentFlags().BoolP(cobraext.TestCoverageFlagName, "", false, cobraext.TestCoverageFlagDescription)
 	cmd.PersistentFlags().DurationP(cobraext.DeferCleanupFlagName, "", 0, cobraext.DeferCleanupFlagDescription)
 	cmd.PersistentFlags().String(cobraext.VariantFlagName, "", cobraext.VariantFlagDescription)
+	cmd.PersistentFlags().String(cobraext.StackOverlayNetworkNameFlagName, "", cobraext.StackOverlayNetworkNameFlagDescription)
 
 	for testType, runner := range testrunner.TestRunners() {
 		action := testTypeCommandActionFactory(runner)
@@ -120,6 +121,11 @@ func testTypeCommandActionFactory(runner testrunner.TestRunner) cobraext.Command
 		testCoverage, err := cmd.Flags().GetBool(cobraext.TestCoverageFlagName)
 		if err != nil {
 			return cobraext.FlagParsingError(err, cobraext.TestCoverageFlagName)
+		}
+
+		overlayNetworkName, err := cmd.Flags().GetString(cobraext.StackOverlayNetworkNameFlagName)
+		if err != nil {
+			return cobraext.FlagParsingError(err, cobraext.StackOverlayNetworkNameFlagName)
 		}
 
 		packageRootPath, found, err := packages.FindPackageRoot()
@@ -203,6 +209,7 @@ func testTypeCommandActionFactory(runner testrunner.TestRunner) cobraext.Command
 				ESClient:           esClient,
 				DeferCleanup:       deferCleanup,
 				ServiceVariant:     variantFlag,
+				OverlayNetworkName: overlayNetworkName,
 			})
 
 			results = append(results, r...)

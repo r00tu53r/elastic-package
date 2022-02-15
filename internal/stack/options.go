@@ -14,4 +14,8 @@ type Options struct {
 	Services []string
 
 	Profile *profile.Profile
+
+	// swarm mode options
+	SwarmMode bool
+	StackName string
 }

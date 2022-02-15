@@ -119,23 +119,6 @@ func ConnectToNetwork(containerID, network string) error {
 	return nil
 }
 
-func SwarmInit(ift string) error {
-	swarmArg := []string{
-		"swarm",
-		"init",
-		"--advertise-addr",
-		ift,
-	}
-	cmd := exec.Command("docker", swarmArg...)
-	errOutput := new(bytes.Buffer)
-	cmd.Stderr = errOutput
-	logger.Debugf("run command: %s", cmd)
-	if err := cmd.Run(); err != nil {
-		return errors.Wrapf(err, "docker swarm init failed (stderr=%q)", errOutput.String())
-	}
-	return nil
-}
-
 func CreateNetwork(name, driver string, arg ...string) error {
 	netcmd := []string{
 		"network",
@@ -191,4 +174,77 @@ func Copy(containerName, containerPath, localPath string) error {
 		return errors.Wrapf(err, "could not copy files from the container (stderr=%q)", errOutput.String())
 	}
 	return nil
+}
+
+func SwarmInit(ift string) (string, error) {
+
+	swarmArg := []string{
+		"swarm",
+		"init",
+		"--advertise-addr",
+		ift,
+	}
+	cmd := exec.Command("docker", swarmArg...)
+	errOutput := new(bytes.Buffer)
+	cmd.Stderr = errOutput
+	logger.Debugf("run command: %s", cmd)
+	if err := cmd.Run(); err != nil {
+		return "", errors.Wrapf(err, "docker swarm init failed (stderr=%q)", errOutput.String())
+	}
+	joinToken, err := swarmJoinToken()
+	if err != nil {
+		logger.Error(err)
+		return "", err
+	}
+	return joinToken, nil
+}
+
+func swarmJoinToken() (string, error) {
+	swarmArg := []string{
+		"swarm",
+		"join-token",
+		"worker",
+	}
+	cmd := exec.Command("docker", swarmArg...)
+	errOutput := new(bytes.Buffer)
+	cmd.Stderr = errOutput
+	logger.Debugf("run command: %s", cmd)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to get join token (stderr=%q)", errOutput.String())
+	}
+	return string(out), nil
+}
+
+func SwarmLeave() error {
+	swarmArg := []string{
+		"swarm",
+		"leave",
+		"--force",
+	}
+	cmd := exec.Command("docker", swarmArg...)
+	errOutput := new(bytes.Buffer)
+	cmd.Stderr = errOutput
+	logger.Debugf("run command: %s", cmd)
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "docker swarm leave failed (stderr=%q)", errOutput.String())
+	}
+	return nil
+}
+
+func SwarmStackDown(stackName string) error {
+	var args []string
+
+	args = append(args, "stack")
+	args = append(args, "rm")
+	args = append(args, stackName)
+
+	cmd := exec.Command("docker", args...)
+
+	if logger.IsDebugMode() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+	logger.Debugf("running command: %s", cmd)
+	return cmd.Run()
 }

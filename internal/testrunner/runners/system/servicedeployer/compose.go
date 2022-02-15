@@ -59,8 +59,23 @@ func (d *DockerComposeServiceDeployer) SetUp(inCtxt ServiceContext) (DeployedSer
 		return nil, errors.Wrap(err, "could not create Docker Compose project for service")
 	}
 
+	var overlayNetworkName string
+	if inCtxt.CustomProperties != nil {
+		if v, ok := inCtxt.CustomProperties["overlay-network"]; ok {
+			if v != nil {
+				if overlayNetworkName, ok = v.(string); !ok {
+					return nil, errors.New("unexpected value for overlay network")
+				}
+			}
+		}
+	}
+
 	// Verify the Elastic stack network
-	err = stack.EnsureStackNetworkUp()
+	if overlayNetworkName != "" {
+		err = stack.EnsureStackNetworkUp(overlayNetworkName)
+	} else {
+		err = stack.EnsureStackNetworkUp(stack.Network())
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "Elastic stack network is not ready")
 	}
@@ -97,7 +112,11 @@ func (d *DockerComposeServiceDeployer) SetUp(inCtxt ServiceContext) (DeployedSer
 	outCtxt.Hostname = p.ContainerName(serviceName)
 
 	// Connect service network with stack network (for the purpose of metrics collection)
-	err = docker.ConnectToNetwork(p.ContainerName(serviceName), stack.Network())
+	if overlayNetworkName != "" {
+		err = docker.ConnectToNetwork(p.ContainerName(serviceName), overlayNetworkName)
+	} else {
+		err = docker.ConnectToNetwork(p.ContainerName(serviceName), stack.Network())
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "can't attach service container to the stack network")
 	}

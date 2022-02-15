@@ -102,6 +102,12 @@ const (
 	StatusKibanaVersionFlagName        = "kibana-version"
 	StatusKibanaVersionFlagDescription = "show packages for the given kibana version"
 
+	StackNameFlagName        = "stack-name"
+	StackNameFlagDescription = "docker swarm stack name"
+
+	StackOverlayNetworkNameFlagName        = "overlay-network-name"
+	StackOverlayNetworkNameFlagDescription = "name of the overlay network (required only when stack was started on docker swarm)"
+
 	TestCoverageFlagName        = "test-coverage"
 	TestCoverageFlagDescription = "generate Cobertura test coverage reports"
 

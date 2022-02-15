@@ -6,20 +6,19 @@ package stack
 
 import (
 	"fmt"
-
-	"github.com/pkg/errors"
+	"os"
+	"os/exec"
 
 	"github.com/elastic/elastic-package/internal/builder"
 	"github.com/elastic/elastic-package/internal/configuration/locations"
 	"github.com/elastic/elastic-package/internal/files"
+	"github.com/elastic/elastic-package/internal/install"
+	"github.com/elastic/elastic-package/internal/logger"
+	"github.com/elastic/elastic-package/internal/profile"
+	"github.com/pkg/errors"
 )
 
-// DockerComposeProjectName is the name of the Docker Compose project used to boot up
-// Elastic Stack containers.
-const DockerComposeProjectName = "elastic-package-stack"
-
-// BootUp function boots up the Elastic stack.
-func BootUp(options Options) error {
+func Deploy(options Options) error {
 	buildPackagesPath, found, err := builder.FindBuildPackagesDirectory()
 	if err != nil {
 		return errors.Wrap(err, "finding build packages directory failed")
@@ -55,26 +54,41 @@ func BootUp(options Options) error {
 		return errors.Wrap(err, "building docker images failed")
 	}
 
-	if options.SwarmMode {
-		err = stackDeploy(options)
-		if err != nil {
-			return errors.Wrap(err, "running docker stack deploy failed")
-		}
-		return nil
-	}
-
-	err = dockerComposeUp(options)
+	err = stackDeploy(options)
 	if err != nil {
-		return errors.Wrap(err, "running docker-compose failed")
+		return errors.Wrap(err, "running docker stack deploy failed")
 	}
 	return nil
 }
 
-// TearDown function takes down the testing stack.
-func TearDown(options Options) error {
-	err := dockerComposeDown(options)
+func stackDeploy(options Options) error {
+
+	var args []string
+
+	composeFile := options.Profile.FetchPath(profile.SnapshotFile)
+
+	args = append(args, "stack")
+	args = append(args, "deploy")
+	args = append(args, "--compose-file")
+	args = append(args, composeFile)
+	args = append(args, options.StackName)
+
+	appConfig, err := install.Configuration()
 	if err != nil {
-		return errors.Wrap(err, "stopping docker containers failed")
+		return errors.Wrap(err, "can't read application configuration")
 	}
-	return nil
+
+	envs := newEnvBuilder().
+		withEnvs(appConfig.StackImageRefs(options.StackVersion).AsEnv()).
+		withEnv(stackVariantAsEnv(options.StackVersion)).withEnvs(options.Profile.ComposeEnvVars()).build()
+
+	cmd := exec.Command("docker", args...)
+	cmd.Env = append(os.Environ(), envs...)
+
+	if logger.IsDebugMode() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+	logger.Debugf("running command: %s", cmd)
+	return cmd.Run()
 }
