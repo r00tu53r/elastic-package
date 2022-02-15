@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
@@ -22,10 +23,19 @@ import (
 	"github.com/elastic/elastic-package/internal/signal"
 )
 
+const (
+	// waitForHealthyTimeout is the maximum duration for WaitForHealthy().
+	waitForHealthyTimeout = 10 * time.Minute
+	// waitForHealthyInterval is the check interval for WaitForHealthy().
+	waitForHealthyInterval = 1 * time.Second
+)
+
 // Project represents a Docker Compose project.
 type Project struct {
 	name             string
 	composeFilePaths []string
+
+	dockerComposeV1 bool
 }
 
 // Config represents a Docker Compose configuration file.
@@ -140,11 +150,20 @@ func NewProject(name string, paths ...string) (*Project, error) {
 		}
 	}
 
-	c := Project{
-		name,
-		paths,
-	}
+	var c Project
+	c.name = name
+	c.composeFilePaths = paths
 
+	ver, err := c.dockerComposeVersion()
+	if err != nil {
+		logger.Errorf("Unable to determine Docker Compose version: %v. Defaulting to 1.x", err)
+		c.dockerComposeV1 = true
+		return &c, nil
+	}
+	if ver.Major() == 1 {
+		logger.Debugf("Determined Docker Compose version: %v, the tool will use Compose V1", err)
+		c.dockerComposeV1 = true
+	}
 	return &c, nil
 }
 
@@ -263,12 +282,20 @@ func (p *Project) WaitForHealthy(opts CommandOptions) error {
 		return err
 	}
 
+	startTime := time.Now()
+	timeout := startTime.Add(waitForHealthyTimeout)
+
 	containerIDs := strings.Split(strings.TrimSpace(b.String()), "\n")
 	for {
+		if time.Now().After(timeout) {
+			return errors.New("timeout waiting for healthy container")
+		}
+
 		if signal.SIGINT() {
 			return errors.New("SIGINT: cancel waiting for policy assigned")
 		}
 
+		// NOTE: healthy must be reinitialized at each iteration
 		healthy := true
 
 		logger.Debugf("Wait for healthy containers: %s", strings.Join(containerIDs, ","))
@@ -295,16 +322,24 @@ func (p *Project) WaitForHealthy(opts CommandOptions) error {
 				continue
 			}
 
+			// Container exited with code > 0
+			if containerDescription.State.Status == "exited" && containerDescription.State.ExitCode > 0 {
+				return fmt.Errorf("container (ID: %s) exited with code %d", containerDescription.ID, containerDescription.State.ExitCode)
+			}
+
 			// Any different status is considered unhealthy
 			healthy = false
 		}
 
+		// end loop before timeout if healthy
 		if healthy {
 			break
 		}
 
-		time.Sleep(time.Second)
+		// NOTE: using sleep does not guarantee interval but it's ok for this use case
+		time.Sleep(waitForHealthyInterval)
 	}
+
 	return nil
 }
 
@@ -340,7 +375,28 @@ func (p *Project) runDockerComposeCmd(opts dockerComposeOptions) error {
 	return cmd.Run()
 }
 
+func (p *Project) dockerComposeVersion() (*semver.Version, error) {
+	var b bytes.Buffer
+
+	args := []string{
+		"version",
+		"--short",
+	}
+	if err := p.runDockerComposeCmd(dockerComposeOptions{args: args, stdout: &b}); err != nil {
+		return nil, errors.Wrap(err, "running Docker Compose version command failed")
+	}
+	dcVersion := b.String()
+	ver, err := semver.NewVersion(strings.Trim(dcVersion, "\n"))
+	if err != nil {
+		return nil, errors.Wrapf(err, "docker compose version is not a valid semver (value: %s)", dcVersion)
+	}
+	return ver, nil
+}
+
 // ContainerName method the container name for the service.
 func (p *Project) ContainerName(serviceName string) string {
-	return fmt.Sprintf("%s_%s_1", p.name, serviceName)
+	if p.dockerComposeV1 {
+		return fmt.Sprintf("%s_%s_1", p.name, serviceName)
+	}
+	return fmt.Sprintf("%s-%s-1", p.name, serviceName)
 }

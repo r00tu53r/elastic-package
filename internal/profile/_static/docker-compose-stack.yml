@@ -11,7 +11,8 @@ services:
       - "ELASTIC_PASSWORD=changeme"
     volumes:
       - "./elasticsearch.config.${STACK_VERSION_VARIANT}.yml:/usr/share/elasticsearch/config/elasticsearch.yml"
-      - "../../../stack/ingest-geoip/${STACK_VERSION_VARIANT}/:/usr/share/elasticsearch/config/ingest-geoip"
+      - "../../../stack/ingest-geoip:/usr/share/elasticsearch/config/ingest-geoip"
+      - "../../../stack/service_tokens:/usr/share/elasticsearch/config/service_tokens"
     ports:
       - "127.0.0.1:9200:9200"
 
@@ -72,7 +73,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: "curl -f http://127.0.0.1:8220/api/status | grep HEALTHY 2>&1 >/dev/null"
-      retries: 12
+      retries: 60
       interval: 5s
     hostname: docker-fleet-server
     environment:
@@ -81,7 +82,8 @@ services:
     - "KIBANA_FLEET_SETUP=1"
     - "KIBANA_FLEET_HOST=http://kibana:5601"
     - "FLEET_SERVER_HOST=0.0.0.0"
-    - "STATE_PATH=/usr/share/elastic-agent"
+    - "FLEET_SERVER_SERVICE_TOKEN=AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL2VsYXN0aWMtcGFja2FnZS1mbGVldC1zZXJ2ZXItdG9rZW46bmgtcFhoQzRRQ2FXbms2U0JySGlWQQ"
+    - "KIBANA_FLEET_SERVICE_TOKEN=AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL2VsYXN0aWMtcGFja2FnZS1mbGVldC1zZXJ2ZXItdG9rZW46bmgtcFhoQzRRQ2FXbms2U0JySGlWQQ"
     ports:
       - "127.0.0.1:8220:8220"
 
@@ -98,14 +100,13 @@ services:
         condition: service_healthy
     healthcheck:
       test: "elastic-agent status"
-      retries: 90
+      retries: 180
       interval: 1s
     hostname: docker-fleet-agent
     environment:
     - "FLEET_ENROLL=1"
     - "FLEET_INSECURE=1"
     - "FLEET_URL=http://fleet-server:8220"
-    - "STATE_PATH=/usr/share/elastic-agent"
     volumes:
     - type: bind
       source: ../../../tmp/service_logs/

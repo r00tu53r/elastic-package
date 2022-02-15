@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/elastic/elastic-package/internal/common"
+	"github.com/elastic/elastic-package/internal/elasticsearch/ingest"
 	"github.com/elastic/elastic-package/internal/fields"
 	"github.com/elastic/elastic-package/internal/logger"
 	"github.com/elastic/elastic-package/internal/multierror"
@@ -30,7 +31,7 @@ const (
 
 type runner struct {
 	options   testrunner.TestOptions
-	pipelines []pipelineResource
+	pipelines []ingest.Pipeline
 }
 
 func (r *runner) TestFolderRequired() bool {
@@ -60,7 +61,7 @@ func (r *runner) TearDown() error {
 		time.Sleep(r.options.DeferCleanup)
 	}
 
-	err := uninstallIngestPipelines(r.options.ESClient, r.pipelines)
+	err := uninstallIngestPipelines(r.options.API, r.pipelines)
 	if err != nil {
 		return errors.Wrap(err, "uninstalling ingest pipelines failed")
 	}
@@ -88,7 +89,7 @@ func (r *runner) run() ([]testrunner.TestResult, error) {
 	}
 
 	var entryPipeline string
-	entryPipeline, r.pipelines, err = installIngestPipelines(r.options.ESClient, dataStreamPath)
+	entryPipeline, r.pipelines, err = installIngestPipelines(r.options.API, dataStreamPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "installing ingest pipelines failed")
 	}
@@ -121,7 +122,7 @@ func (r *runner) run() ([]testrunner.TestResult, error) {
 			continue
 		}
 
-		result, err := simulatePipelineProcessing(r.options.ESClient, entryPipeline, tc)
+		result, err := simulatePipelineProcessing(r.options.API, entryPipeline, tc)
 		if err != nil {
 			err := errors.Wrap(err, "simulating pipeline processing failed")
 			tr.ErrorMsg = err.Error()
@@ -131,7 +132,11 @@ func (r *runner) run() ([]testrunner.TestResult, error) {
 
 		tr.TimeElapsed = time.Since(startTime)
 		fieldsValidator, err := fields.CreateValidatorForDataStream(dataStreamPath,
-			fields.WithNumericKeywordFields(tc.config.NumericKeywordFields))
+			fields.WithNumericKeywordFields(tc.config.NumericKeywordFields),
+			// explicitly enabled for pipeline tests only
+			// since system tests can have dynamic public IPs
+			fields.WithEnabledAllowedIPCheck(),
+		)
 		if err != nil {
 			return nil, errors.Wrapf(err, "creating fields validator for data stream failed (path: %s, test case file: %s)", dataStreamPath, testCaseFile)
 		}

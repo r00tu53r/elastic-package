@@ -103,7 +103,6 @@ type PackageManifest struct {
 	PolicyTemplates []PolicyTemplate `config:"policy_templates" json:"policy_templates" yaml:"policy_templates"`
 	Vars            []Variable       `config:"vars" json:"vars" yaml:"vars"`
 	Owner           Owner            `config:"owner" json:"owner" yaml:"owner"`
-	Release         string           `config:"release" json:"release" yaml:"release"`
 	Description     string           `config:"description" json:"description" yaml:"description"`
 	License         string           `config:"license" json:"license" yaml:"license"`
 	Categories      []string         `config:"categories" json:"categories" yaml:"categories"`
@@ -115,6 +114,7 @@ type DataStreamManifest struct {
 	Title         string `config:"title" json:"title" yaml:"title"`
 	Type          string `config:"type" json:"type" yaml:"type"`
 	Dataset       string `config:"dataset" json:"dataset" yaml:"dataset"`
+	Hidden        bool   `config:"hidden" json:"hidden" yaml:"hidden"`
 	Release       string `config:"release" json:"release" yaml:"release"`
 	Elasticsearch *struct {
 		IngestPipeline *struct {
@@ -241,12 +241,21 @@ func (dsm *DataStreamManifest) GetPipelineNameOrDefault() string {
 
 // IndexTemplateName returns the name of the Elasticsearch index template that would be installed
 // for this data stream.
+// The template name starts with dot "." if the datastream is hidden which is consistent with kibana implementation
+// https://github.com/elastic/kibana/blob/3955d0dc819fec03f68cd1d931f64da8472e34b2/x-pack/plugins/fleet/server/services/epm/elasticsearch/index.ts#L14
 func (dsm *DataStreamManifest) IndexTemplateName(pkgName string) string {
 	if dsm.Dataset == "" {
-		return fmt.Sprintf("%s-%s.%s", dsm.Type, pkgName, dsm.Name)
+		return fmt.Sprintf("%s%s-%s.%s", dsm.indexTemplateNamePrefix(), dsm.Type, pkgName, dsm.Name)
 	}
 
-	return fmt.Sprintf("%s-%s", dsm.Type, dsm.Dataset)
+	return fmt.Sprintf("%s%s-%s", dsm.indexTemplateNamePrefix(), dsm.Type, dsm.Dataset)
+}
+
+func (dsm *DataStreamManifest) indexTemplateNamePrefix() string {
+	if dsm.Hidden {
+		return "."
+	}
+	return ""
 }
 
 // FindInputByType returns the input for the provided type.
