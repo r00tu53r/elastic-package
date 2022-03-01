@@ -76,6 +76,9 @@ func swarmUp(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return cobraext.FlagParsingError(err, cobraext.ProfileFlagName)
 	}
+	if profileName == profile.DefaultProfile || profileName == "" {
+		profileName = profile.SwarmProfile
+	}
 
 	stackName, err := cmd.Flags().GetString(cobraext.StackNameFlagName)
 	if err != nil {
@@ -117,7 +120,7 @@ func swarmDown(cmd *cobra.Command, args []string) error {
 	}
 	err = docker.SwarmStackDown(stackName)
 	if err != nil {
-		return errors.Wrap(err, "booting up the stack failed")
+		return errors.Wrap(err, "stack shutdown failed")
 	}
 	cmd.Println("Done")
 	return nil

@@ -114,6 +114,7 @@ func (d *DockerComposeServiceDeployer) SetUp(inCtxt ServiceContext) (DeployedSer
 	// Build service container name
 	outCtxt.Hostname = p.ContainerName(serviceName)
 
+	logger.Debug(">>>>>>>>>> Container Name: ", p.ContainerName(serviceName))
 	// Connect service network with stack network (for the purpose of metrics collection)
 	if overlayNetworkName != "" {
 		err = docker.ConnectToNetwork(p.ContainerName(serviceName), overlayNetworkName)
