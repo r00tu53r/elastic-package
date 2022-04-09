@@ -48,8 +48,8 @@ const (
 	GenerateTestResultFlagName        = "generate"
 	GenerateTestResultFlagDescription = "generate test result file"
 
-	InterfaceFlagName        = "interface-name"
-	InterfaceFlagDescription = "network interface name"
+	AdvertiseFlagName        = "advertise-address"
+	AdvertiseFlagDescription = "network interface name or ip address (<ip|interface>:[port])"
 
 	IPSubnetFlagName        = "subnet"
 	IPSubnetFlagDescription = "subnet in CIDR format that represents a network segment (Example: 192.168.56.0/24)"

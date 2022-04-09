@@ -176,13 +176,13 @@ func Copy(containerName, containerPath, localPath string) error {
 	return nil
 }
 
-func SwarmInit(ift string) (string, error) {
+func SwarmInit(advAddr string) (string, error) {
 
 	swarmArg := []string{
 		"swarm",
 		"init",
 		"--advertise-addr",
-		ift,
+		advAddr,
 	}
 	cmd := exec.Command("docker", swarmArg...)
 	errOutput := new(bytes.Buffer)

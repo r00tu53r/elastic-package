@@ -41,8 +41,8 @@ func setupSwarmCommand() *cobra.Command {
 	}
 	initCommand.Flags().StringP(cobraext.StackOverlayNetworkNameFlagName, "", "elastic-package-stack-overlay",
 		cobraext.StackOverlayNetworkNameFlagDescription)
-	initCommand.Flags().StringP(cobraext.InterfaceFlagName, "", "", cobraext.InterfaceFlagDescription)
-	initCommand.MarkFlagRequired(cobraext.InterfaceFlagName)
+	initCommand.Flags().StringP(cobraext.AdvertiseFlagName, "", "", cobraext.AdvertiseFlagDescription)
+	initCommand.MarkFlagRequired(cobraext.AdvertiseFlagName)
 	initCommand.Flags().StringP(cobraext.IPSubnetFlagName, "", "", cobraext.IPSubnetFlagDescription)
 	initCommand.MarkFlagRequired(cobraext.IPSubnetFlagName)
 
@@ -128,14 +128,30 @@ func swarmDown(cmd *cobra.Command, args []string) error {
 
 func stackInit(cmd *cobra.Command, args []string) error {
 
-	iftname, err := cmd.Flags().GetString(cobraext.InterfaceFlagName)
+	var notIft, notIPPort, notIP bool
+
+	advertiseAddr, err := cmd.Flags().GetString(cobraext.AdvertiseFlagName)
 	if err != nil {
-		return cobraext.FlagParsingError(err, cobraext.InterfaceFlagDescription)
+		return cobraext.FlagParsingError(err, cobraext.AdvertiseFlagDescription)
 	}
-	_, err = net.InterfaceByName(iftname)
+
+	_, err = net.InterfaceByName(advertiseAddr)
 	if err != nil {
-		return errors.Wrap(err, "cannot create docker swarm without overlay network interface")
+		notIft = true
+		// check if this is ip:port format
+		_, _, err = net.SplitHostPort(advertiseAddr)
+		if err != nil {
+			notIPPort = true
+			// check if it is just IP
+			if v := net.ParseIP(advertiseAddr); v == nil {
+				notIP = true
+			}
+		}
 	}
+	if notIft && notIPPort && notIP {
+		return errors.Wrap(err, "cannot create docker swarm advertise-addr must be <interface|ip>:[port]")
+	}
+
 	subnet, err := cmd.Flags().GetString(cobraext.IPSubnetFlagName)
 	if err != nil {
 		return cobraext.FlagParsingError(err, cobraext.IPSubnetFlagName)
@@ -156,7 +172,7 @@ func stackInit(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "swarm profile creation has failed")
 	}
 
-	joinToken, err := docker.SwarmInit(iftname)
+	joinToken, err := docker.SwarmInit(advertiseAddr)
 	if err != nil {
 		return errors.Wrap(err, "docker swarm creation has failed")
 	}
